@@ -4,7 +4,7 @@ tmp/**
 tmp/**
 snippets/**
 local-tests/**
-hunspell-xml*.jar
+AutoPDS8*.jar
 *.class
 *.tmp
 *.bak
