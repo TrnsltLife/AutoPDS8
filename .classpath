@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry excluding="*.bat" including="*.groovy|*.java" kind="src" path="test"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry exported="true" kind="con" path="GROOVY_SUPPORT"/>
+	<classpathentry kind="lib" path="lib/jlayer1.0.1.jar"/>
+	<classpathentry kind="lib" path="lib/jogg-0.0.7.jar"/>
+	<classpathentry kind="lib" path="lib/jorbis-0.0.15.jar"/>
+	<classpathentry kind="lib" path="lib/mp3spi1.9.4.jar"/>
+	<classpathentry kind="lib" path="lib/tritonus_jorbis-0.3.6.jar"/>
+	<classpathentry kind="lib" path="lib/tritonus_share-0.3.6.jar"/>
+	<classpathentry kind="lib" path="lib/vorbisspi1.0.3.jar"/>
+	<classpathentry exported="true" kind="con" path="GROOVY_DSL_SUPPORT"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>
