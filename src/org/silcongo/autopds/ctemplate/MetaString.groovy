@@ -5,7 +5,7 @@ import org.silcongo.autopds.util.*
 class MetaString extends MetaPlaceable
 {
 	def paragraphCount = 0
-	def widthLimit = 1000000000.000000
+	def widthLimit = 10000000.000000 //1000000000.000000
 	def rotateDegrees = 0.0
 	def vertical = false
 	def pathID = "PATH_NOEFFECT"

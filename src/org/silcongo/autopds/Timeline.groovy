@@ -74,7 +74,9 @@ class Timeline
 		}
 		else if(it instanceof EffectSubtitle)
 		{
-			it = subtitleTrack << it
+			//it = subtitleTrack << it
+			//"Subtitles" are actually placed on the title track
+			it = titleTrack << it
 		}
 		else if(it instanceof EffectTitle)
 		{
@@ -97,7 +99,8 @@ class Timeline
 		output << """<COMPOSITE ID="0">"""
 		output << """<COMPOSITE ID="0">"""
 		output << """<COMPOSITE ID="0">"""
-
+		output << """<COMPOSITE ID="0">"""
+		
 		output << videoTrack.toStringVideo()
 		
 		output << """</COMPOSITE>
@@ -127,8 +130,11 @@ class Timeline
 </COMPOSITE>"""
 */
 
-		output << """</COMPOSITE>"""
-	
+		//output << """</COMPOSITE>"""
+		output << """</COMPOSITE>
+<EFFECT ID="0" NAME="AEFF_EFFECT_DUMMY" GUID="27" START="0" STOP="0" MUTE="TRUE"/>
+</COMPOSITE>"""
+		
 		output << """</GROUP>"""
 		
 
