@@ -68,6 +68,11 @@ class PanZoomKeyframe
 		rotation = r
 	}
 	
+	public PanZoomKeyframe(lx, ly, sxy, t)
+	{
+		this(lx, ly, sxy, sxy, t, 0.0)
+	}
+	
 	public PanZoomKeyframe(shortcut, t)
 	{	
 		this(shortcut, t, 0.0)
@@ -75,7 +80,29 @@ class PanZoomKeyframe
 	
 	public PanZoomKeyframe(shortcut, t, r)
 	{	
-		if(shortcut =~ /CENTER\./)
+		if(shortcut =~ /,/) //list of X,Y,XYSize
+		{
+			def list = shortcut.split(/,/).toList()
+			if(list.size() == 3)
+			{
+				try
+				{
+					x = Double.parseDouble(list[0])
+					y = Double.parseDouble(list[1])
+					def scale = Double.parseDouble(list[2])
+					scaleX = scale
+					scaleY = scale
+				}
+				catch(Exception e)
+				{
+					x = 0.5
+					y = 0.5
+					scaleX = 1.0
+					scaleY = 1.0
+				}
+			}
+		}
+		else if(shortcut =~ /CENTER\./)
 		{
 			scaleX = Float.parseFloat(shortcut - "CENTER")
 			scaleY = scaleX
