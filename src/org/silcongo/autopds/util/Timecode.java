@@ -21,4 +21,28 @@ public class Timecode
 	{
 		return (long)(s.doubleValue() * 10000000);
 	}
+	
+	public static double toSeconds(long t)
+	{
+		double multiplier = 10000000.0;
+		return (double)t / multiplier;
+	}
+	
+	public static double toSeconds(Long t)
+	{
+		double multiplier = 10000000.0;
+		return (double)t.longValue() / multiplier;
+	}
+	
+	public static double toSeconds(double t)
+	{
+		double multiplier = 10000000.0;
+		return t / multiplier;
+	}
+	
+	public static double toSeconds(Double t)
+	{
+		double multiplier = 10000000.0;
+		return t.doubleValue() / multiplier;
+	}
 }
