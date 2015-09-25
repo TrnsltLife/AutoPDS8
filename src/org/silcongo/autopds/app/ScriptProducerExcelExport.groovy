@@ -199,8 +199,13 @@ class ScriptProducerExcelExport
 		settings.music3volume = "1.0"
 		settings.audiovolume = "1.0"
 		settings.videovolume = "1.0"
+		
+		settings.music1loop = ""
+		settings.music2loop = ""
+		settings.music3loop = ""
 
 		settings.textbottomoffset = "0"
+		settings.textsideoffset="0"
 		settings.textfont = "GentiumAlt"
 		settings.textsize = "20"
 		settings.textbold = "true"
@@ -242,6 +247,7 @@ class ScriptProducerExcelExport
 			Start Time - if the field contains a number and Field 4 contains a number, then Field 3 is taken as a Start Time (offset from the start of this segment).
 		Field 4: this field can be blank, or it can be a Stop Time, if Field 3 contains a Start Time
 		*/
+		def totalT = 0.0
 		defaultSettings()
 		readScriptFile() //read in settings, and read all script lines into the script list
 		segmentScript() //separate lines of the script into segments (each segment starts with a # line) in the segments list
@@ -296,7 +302,6 @@ class ScriptProducerExcelExport
 			
 			//First count up the duration time for each type of object, so we can calculate how long images should be shown, etc.
 			segment.each{line->
-			
 				def commandList = line.split(/\t/).toList()
 				def command = commandList[0] ?: ""
 				def filename = commandList[1] ?: ""
@@ -319,11 +324,13 @@ class ScriptProducerExcelExport
 				/*
 				starttime = doubleOrNothing(starttime.trim(), null)
 				stoptime = doubleOrNothing(stoptime.trim(), null)
+				startoffset = doubleOrNothing(startoffset.trim(), 0.0)
+				stopoffset = doubleOrNothing(stopoffset.trim(), 0.0)
 				*/
 				starttime = parseTimeExpression(starttime.trim(), variables, null)
 				stoptime = parseTimeExpression(stoptime.trim(), variables, null)
-				startoffset = doubleOrNothing(startoffset.trim(), 0.0)
-				stopoffset = doubleOrNothing(stopoffset.trim(), 0.0)
+				startoffset = parseTimeExpression(startoffset.trim(), variables, 0.0)
+				stopoffset = parseTimeExpression(stopoffset.trim(), variables, 0.0)
 				if(startoffset < 0.0){startoffset *= -1}
 				if(stopoffset < 0.0){stopoffset *= -1}
 				
@@ -331,7 +338,7 @@ class ScriptProducerExcelExport
 				{
 					duration = stoptime - starttime
 				}
-				duration = parseTimeExpression(duration, variables, 0.0)
+				duration = parseTimeExpression(duration as String, variables, 0.0)
 				if(starttime != null && stoptime == null && duration !=  0.0)
 				{
 					stoptime = starttime + duration
@@ -341,6 +348,9 @@ class ScriptProducerExcelExport
 					starttime = stoptime - duration
 					if(starttime < 0.0){starttime = 0.0}
 				}
+				
+				//logInfo("Loop1: $line")
+				//logInfo("Loop1: $starttime, $stoptime, $duration")
 
 				def format = ""
 				if(filename)
@@ -354,9 +364,21 @@ class ScriptProducerExcelExport
 				{
 					def subs = new SubtitleFile(settings.textpath + filename)
 					subtlT = subs.subtitles[-1].end //the ending time of the last subtitle, indicating the total length of the subtitles
+					
+					//If starttime is present, it changes the offset of the start of the subtitle display
+					if(starttime)
+					{
+						//starttime of 2 means leave 2 seconds of empty space before the subtitle starts
+						subs.offset(starttime)
+						subtlT += starttime
+					}
+					
+					//Assign variables that can be used to schedule when images and videos appear
 					variables = subs.variables
-					println("Subtitles file ${settings.textpath + filename} contains these variables:\r\n" + 
+					/*
+					logInfo("Subtitles file ${settings.textpath + filename} contains these variables:\r\n" + 
 						variables.keySet().sort().collect{k-> "\t" + k + ": " + variables[k]}.join("\r\n"))
+					*/
 				}
 							
 				//Audio file
@@ -391,18 +413,31 @@ class ScriptProducerExcelExport
 					int musicIndex = Integer.parseInt(command - "music")
 					//def afi = new AudioFileInfo(Library.findFileOrDie(settings.audiopath + filename).getCanonicalPath())
 					//def mediaDuration = afi.filedata["seconds"]
-					def mediaDuration = FFMPEG.getDuration(Library.findFileOrDie(settings.audiopath + filename).getCanonicalPath())
+					def mediaDuration = FFMPEG.getDuration(Library.findFileOrDie(settings.musicpath + filename).getCanonicalPath())
 					//If the mediaDuration is 0, and a duration was specified, set the mediaDuration to duration. This allows user to indicate the duration of media files that can't have that information automatically read.
 					if(mediaDuration == null)
 					{
 						mediaDuration = duration
 					}
 					duration = mediaDuration
+					
 					//If startoffset or stopoffset parameters are present, limit the length of the music
-					if(startoffset){duration -= startoffset}
-					if(stopoffset){duration -= (mediaDuration - stopoffset)}
+					//clipDuration: length of the portion of the music to be shown in the timeline
+					def clipDuration = duration
+					if(startoffset > clipDuration){startoffset = clipDuration}
+					if(startoffset)
+					{
+						clipDuration -= startoffset
+					}
+					if(stopoffset > clipDuration){stopoffset = 0.0} //stopoffset is measured from the start of the media file
+					if(stopoffset)
+					{
+						clipDuration -= (mediaDuration - stopoffset)
+					}
+					
+					//clipStopOffset is measured backwards from the end of the media clip
 					def clipStopOffset = stopoffset ? (mediaDuration - stopoffset) : 0.0
-					musicTimes[musicIndex] << [duration:duration, mediaDuration:mediaDuration, clipStopOffset:clipStopOffset, type:"file"]
+					musicTimes[musicIndex] << [duration:clipDuration, mediaDuration:mediaDuration, clipStopOffset:clipStopOffset, type:"file"]
 				}
 				
 				//Image file
@@ -431,6 +466,7 @@ class ScriptProducerExcelExport
 				else if(command == "video" && format == "video")
 				{
 					Library.findFileOrDie(settings.videopath + filename)
+					//mediaDuration: length of the video
 					def mediaDuration = FFMPEG.getDuration(Library.findFileOrDie(settings.videopath + filename).getCanonicalPath())
 					if(mediaDuration == null)
 					{
@@ -439,19 +475,31 @@ class ScriptProducerExcelExport
 					duration = mediaDuration
 
 					//If startoffset or stopoffset parameters are present, limit the length of the video
+					//clipDuration: length of the portion of the video to be shown in the timeline
 					def clipDuration = duration
-					if(startoffset){clipDuration -= startoffset}
-					if(stopoffset){clipDuration -= (duration - stopoffset)}
+					if(startoffset > clipDuration){startoffset = clipDuration}
+					if(startoffset)
+					{
+						clipDuration -= startoffset
+					}
+					if(stopoffset > clipDuration){stopoffset = 0.0} //stopoffset is measured from the start of the media file
+					if(stopoffset)
+					{
+						clipDuration -= (mediaDuration - stopoffset)
+					}
 
 					videoT += clipDuration
-					def clipStopOffset = stopoffset ? (duration - stopoffset) : 0.0
+					//clipStopOffset is measured backwards from the end of the media clip
+					def clipStopOffset = stopoffset ? (mediaDuration - stopoffset) : 0.0
 					if(starttime != null && stoptime != null)
 					{
-						imageTimes << [start:starttime, stop:stoptime, duration:duration, mediaDuration:mediaDuration, clipStopOffset:clipStopOffset, name:filename]
+						imageTimes << [start:starttime, stop:stoptime, duration:clipDuration, mediaDuration:mediaDuration, clipStopOffset:clipStopOffset, name:filename]
+						//logInfo("video: [start:$starttime, stop:$stoptime, duration:$clipDuration, mediaDuration:$mediaDuration, clipStopOffset:$clipStopOffset, name:$filename]")
 					}
 					else
 					{
-						imageTimes << [start:starttime, stop:stoptime, duration:duration, mediaDuration:mediaDuration, clipStopOffset:clipStopOffset, name:filename]
+						imageTimes << [start:starttime, stop:stoptime, duration:clipDuration, mediaDuration:mediaDuration, clipStopOffset:clipStopOffset, name:filename]
+						//logInfo("video: [start:$starttime, stop:$stoptime, duration:$clipDuration, mediaDuration:$mediaDuration, clipStopOffset:$clipStopOffset, name:$filename]")
 					}
 					//Duration is required to know how long the video lasts
 					//TODO It would be nice to be able to detect the video length automatically
@@ -464,21 +512,24 @@ class ScriptProducerExcelExport
 					{
 						colorT += duration
 						imageTimes << [start:starttime, stop:stoptime, duration:duration, name:colorname]
+						//logInfo("color: [start:$starttime, stop:$stoptime, duration:$duration, name:$colorname]")
 					}
 					else if(duration == 0.0)
 					{
 						colorT += settings.colortime
 						imageTimes << [start:starttime, stop:stoptime, duration:settings.colortime, name:colorname]
+						//logInfo("color: [start:$starttime, stop:$stoptime, duration:${settings.colortime}, name:$colorname]")
 					}
 					else
 					{
 						colorT += duration
 						imageTimes << [start:starttime, stop:stoptime, duration:duration, name:colorname]
+						//logInfo("color: [start:$starttime, stop:$stoptime, duration:$duration, name:$colorname]")
 					}
 				}
 				
 				//Transition
-				else if(command == "trans" && (Transition.transitionNames[transition] || transition == "Random"))
+				else if(command == "trans" && (Transition.transitionDataMap[transition] || transition == "Random"))
 				{
 					if(duration == 0.0)
 					{
@@ -560,6 +611,9 @@ class ScriptProducerExcelExport
 			{
 				longestT = imageT + colorT + videoT
 			}
+			
+			//Update totalT (which is available at the end outside of the segment loop) with the length of the current segment
+			totalT += longestT
 
 			//If the musicT haven't been calculated yet, calculate them now, but make the audiolimiter setting be true
 			if(!musicTCalculated)
@@ -574,7 +628,6 @@ class ScriptProducerExcelExport
 			//*******************************************************************
 			calculateImageTimes(imageTimes, longestT)
 			calculateImageTimes(pipTimes[1], longestT)
-			
 			
 			//*******************************************************************
 			//Now set longestT to be the longest audio or the sum of imageT + colorT + videoT, whichever is longer
@@ -610,10 +663,18 @@ class ScriptProducerExcelExport
 				def startoffset = commandList[10] ?: ""
 				def stopoffset = commandList[11] ?: ""
 
+				/*
 				starttime = doubleOrNothing(starttime.trim(), null)
 				stoptime = doubleOrNothing(stoptime.trim(), null)
 				startoffset = doubleOrNothing(startoffset.trim(), 0.0)
 				stopoffset = doubleOrNothing(stopoffset.trim(), 0.0)
+				*/
+				
+				starttime = parseTimeExpression(starttime.trim(), variables, null)
+				stoptime = parseTimeExpression(stoptime.trim(), variables, null)
+				startoffset = parseTimeExpression(startoffset.trim(), variables, 0.0)
+				stopoffset = parseTimeExpression(stopoffset.trim(), variables, 0.0)
+				
 				if(startoffset < 0.0){startoffset *= -1}
 				if(stopoffset < 0.0){stopoffset *= -1}
 
@@ -632,6 +693,10 @@ class ScriptProducerExcelExport
 					if(starttime < 0.0){starttime = 0.0}
 				}
 				
+				//logInfo("Loop2: $line")
+				//logInfo("Loop2: $starttime, $stoptime, $duration")
+
+				
 				def format = ""
 				if(filename)
 				{
@@ -644,7 +709,15 @@ class ScriptProducerExcelExport
 				if(command == "text" && (new File(settings.textpath + filename)).exists())
 				{
 					def subs = new SubtitleFile(settings.textpath + filename)
-					//logInfo("Segment Start Time: " + segmentStartTime)
+					
+					//If starttime is present, it changes the offset of the start of the subtitle display
+					if(starttime)
+					{
+						//starttime of 2 means leave 2 seconds of empty space before the subtitle starts
+						subs.offset(starttime)
+					}
+					
+					logInfo("Segment Start Time: " + segmentStartTime)
 					subs.subtitles.each{sub->
 						subtl = new EffectSubtitle(Timecode.seconds(sub.end - sub.start))
 						subtl.start = Timecode.seconds(sub.start) + segmentStartTime
@@ -666,7 +739,11 @@ class ScriptProducerExcelExport
 				{
 					//A number representing audio silence, in seconds
 					audio = timeline << Timecode.seconds(duration)
-					//logInfo("Audio quiet, duration=" + audio.duration.toString().padLeft(10, " ") + "".padRight(15, " ") + " V" + timeline.videoLatestTime.toString().padLeft(12, " ") + " A" + timeline.audioLatestTime.toString().padLeft(12, " "))
+					/*logInfo("V" + Timecode.toSeconds(timeline.videoLatestTime).toString().padLeft(12, " ") + 
+						" A" + Timecode.toSeconds(timeline.audioLatestTime).toString().padLeft(12, " ") +
+						" D " + Timecode.toSeconds(audio.duration).toString().padLeft(12, " ")[0..11] +
+						" Audio silence")
+					*/
 				}
 				else if(command == "audio" && format == "audio")
 				{
@@ -674,7 +751,11 @@ class ScriptProducerExcelExport
 					audio = timeline << lib.add(Library.findFileOrDie(settings.audiopath + filename))
 					if(volume == null || volume == ""){volume = settings["audiovolume"]}
 					audio.setConstantVolume(Float.parseFloat(volume))
-					//logInfo("Added audio, duration=" + audio.duration.toString().padLeft(10, " ") + "".padRight(15, " ") + " V" + timeline.videoLatestTime.toString().padLeft(12, " ") + " A" + timeline.audioLatestTime.toString().padLeft(12, " "))
+					/*logInfo("V" + Timecode.toSeconds(timeline.videoLatestTime).toString().padLeft(12, " ") +
+						" A" + Timecode.toSeconds(timeline.audioLatestTime).toString().padLeft(12, " ") +
+						" D " + Timecode.toSeconds(audio.duration).toString().padLeft(12, " ")[0..11] +
+						" Audio $filename")
+					*/
 				}
 				
 				//Music file
@@ -687,7 +768,11 @@ class ScriptProducerExcelExport
 					{
 						//A number representing audio silence, in seconds
 						music[musicIndex] = timeline.musicTrack[musicIndex] << Timecode.seconds(listItem.duration)
-						//logInfo("Music quiet, duration=" + music[musicIndex].duration.toString().padLeft(10, " ") + "".padRight(15, " ") + " V" + timeline.videoLatestTime.toString().padLeft(12, " ") + " A" + timeline.audioLatestTime.toString().padLeft(12, " "))
+						/*logInfo("V" + Timecode.toSeconds(timeline.videoLatestTime).toString().padLeft(12, " ") +
+							" A" + Timecode.toSeconds(timeline.audioLatestTime).toString().padLeft(12, " ") +
+							" D " + Timecode.toSeconds(music[musicIndex].duration).toString().padLeft(12, " ")[0..11] +
+							" Music silence")
+						*/
 					}
 				}
 				else if(command.startsWith("music") && format == "audio")
@@ -709,7 +794,11 @@ class ScriptProducerExcelExport
 						
 						if(volume == null || volume == ""){volume = settings["music" + musicIndex + "volume"]}
 						music[musicIndex].setConstantVolume(Float.parseFloat(volume))
-						//logInfo("Added music[$musicIndex], duration=" + music[musicIndex].duration.toString().padLeft(10, " ") + "".padRight(15, " ") + " V" + timeline.videoLatestTime.toString().padLeft(12, " ") + " A" + timeline.audioLatestTime.toString().padLeft(12, " "))
+						/*logInfo("V" + Timecode.toSeconds(timeline.videoLatestTime).toString().padLeft(12, " ") +
+							" A" + Timecode.toSeconds(timeline.audioLatestTime).toString().padLeft(12, " ") +
+							" D " + Timecode.toSeconds(music[musicIndex].duration).toString().padLeft(12, " ")[0..11] +
+							" Music $filename")
+						*/
 					}
 				}
 				
@@ -731,7 +820,11 @@ class ScriptProducerExcelExport
 						}
 					}
 					
-					//logInfo("Added image, duration=" + Timecode.seconds(thisImageTime).toString().padLeft(10, " ") + line.padRight(15, " ") + " V" + timeline.videoLatestTime.toString().padLeft(12, " ") + " A" + timeline.audioLatestTime.toString().padLeft(12, " "))
+					/*logInfo("V" + Timecode.toSeconds(timeline.videoLatestTime).toString().padLeft(12, " ") +
+						" A" + Timecode.toSeconds(timeline.audioLatestTime).toString().padLeft(12, " ") +
+						" D " + thisImageTime.toString().padLeft(12, " ")[0..11] +
+						" Image $filename")
+					*/
 				}
 				
 				//Video file
@@ -748,13 +841,28 @@ class ScriptProducerExcelExport
 					def thisStopOffset = listItem.stopOffset
 					if(listItem.clipStopOffset > thisStopOffset){thisStopOffset = listItem.clipStopOffset}
 					if(thisStopOffset == null){thisStopOffset = 0.0}
-					//logInfo("startoffset: $startoffset ; stopoffset: $thisStopOffset")
 					video = timeline.videoTrack.addClippedClip(video, Timecode.seconds(startoffset), Timecode.seconds(thisStopOffset))
 					video = timeline.videoTrack.videoTimeline[-1]
 					
 					if(volume == null || volume == ""){volume = settings["videovolume"]}
 					video.clipMAudio.setConstantVolume(Float.parseFloat(volume))
-					//logInfo("Added video, duration=" + Timecode.seconds(duration).toString().padLeft(10, " ") + line.padRight(15, " ") + " V" + timeline.videoLatestTime.toString().padLeft(12, " ") + " A" + timeline.audioLatestTime.toString().padLeft(12, " "))
+					/*logInfo("V" + Timecode.toSeconds(timeline.videoLatestTime).toString().padLeft(12, " ") +
+						" A" + Timecode.toSeconds(timeline.audioLatestTime).toString().padLeft(12, " ") +
+						" D " + Timecode.toSeconds(video.duration).toString().padLeft(12, " ")[0..11] +
+						" Video $filename" +
+						" Offset[$startoffset, $thisStopOffset]")
+					*/
+					
+					//Pan/Zoom command
+					if(panzoom1 != "")
+					{
+						if(panzoom2 == ""){panzoom2 = panzoom1}
+						if(video != null)
+						{
+							//logInfo("panzoom from $panzoom1 to $panzoom2")
+							video.panZoom = new PanZoom(panzoom1, panzoom2)
+						}
+					}
 				}
 
 				
@@ -765,11 +873,15 @@ class ScriptProducerExcelExport
 					visualObjectCount++
 					color = timeline << colors[colorname].clone(Timecode.seconds(thisColorTime))
 					
-					//logInfo("Added color, duration=" + Timecode.seconds(thisColorTime).toString().padLeft(10, " ") + line.padRight(15, " ") + " V" + timeline.videoLatestTime.toString().padLeft(12, " ") + " A" + timeline.audioLatestTime.toString().padLeft(12, " "))
+					/*logInfo("V" + Timecode.toSeconds(timeline.videoLatestTime).toString().padLeft(12, " ") +
+						" A" + Timecode.toSeconds(timeline.audioLatestTime).toString().padLeft(12, " ") +
+						" D " + Timecode.toSeconds(thisColorTime).toString().padLeft(12, " ")[0..11] +
+						" Color $colorname")
+					*/
 				}
 				
 				//Transition
-				if(command == "trans" && (Transition.transitionNames[transition] || transition == "Random"))
+				if(command == "trans" && (Transition.transitionDataMap[transition] || transition == "Random"))
 				{
 
 					def thisTransTime
@@ -783,7 +895,11 @@ class ScriptProducerExcelExport
 					}
 					trans = timeline << new Transition(transition, Timecode.seconds(thisTransTime))
 					
-					//logInfo("Added trans, duration=" + Timecode.seconds(thisTransTime).toString().padLeft(10, " ") + line.padRight(15, " ") + " V" + timeline.videoLatestTime.toString().padLeft(12, " ") + " A" + timeline.audioLatestTime.toString().padLeft(12, " "))
+					/*logInfo("V" + Timecode.toSeconds(timeline.videoLatestTime).toString().padLeft(12, " ") +
+						" A" + Timecode.toSeconds(timeline.audioLatestTime).toString().padLeft(12, " ") +
+						" D " + thisTransTime.toString().padLeft(12, " ")[0..11] +
+						" Trans $transition")
+					*/
 				}
 				
 				//PIP image/video file
@@ -798,12 +914,17 @@ class ScriptProducerExcelExport
 
 						//first create the image for the ClipPIP
 						pipClip[pipIndex] = timeline.pipTrack[pipIndex].addClipAt(lib.add(Library.findFileOrDie(settings.imagepath + filename)), Timecode.seconds(thisPIPTime.start) + segmentStartTime, Timecode.seconds(thisPIPTime.duration))
-
+						
 						//now create the obligagory TransitionPIP, and assigne the default style information to it (stretch the image to full-screen)
 						pipTrans[pipIndex] = timeline.pipTrack[pipIndex] << new TransitionPIP(pipClip[pipIndex])
+						
 						addFullScreenImageFormatting(pipTrans[pipIndex], settings.imagepath + filename)
-
-						//logInfo("Added pipimg[$pipIndex], duration=" + pip[pipIndex].duration.toString().padLeft(10, " ") + "".padRight(15, " ") + " V" + timeline.videoLatestTime.toString().padLeft(12, " ") + " A" + timeline.audioLatestTime.toString().padLeft(12, " "))
+						
+						/*logInfo("V" + Timecode.toSeconds(timeline.videoLatestTime).toString().padLeft(12, " ") +
+							" A" + Timecode.toSeconds(timeline.audioLatestTime).toString().padLeft(12, " ") +
+							" D " + Timecode.toSeconds(pip[pipIndex].duration).toString().padLeft(12, " ")[0..11] +
+							" PIP $filename")
+						*/
 					}
 				}
 			}
@@ -820,8 +941,14 @@ class ScriptProducerExcelExport
 				//This does that, adding extra blank audio time to pad the audio track out to the same length as the video track.
 				audio = timeline << Timecode.seconds(extraAudioTime)
 
-				//logInfo("Added quiet, duration=" + Timecode.seconds(extraAudioTime).toString().padLeft(10, " ") + "".padRight(15, " ") + " V" + timeline.videoLatestTime.toString().padLeft(12, " ") + " A" + timeline.audioLatestTime.toString().padLeft(12, " "))
+				/*logInfo("V" + Timecode.toSeconds(timeline.videoLatestTime).toString().padLeft(12, " ") +
+					" A" + Timecode.toSeconds(timeline.audioLatestTime).toString().padLeft(12, " ") +
+					" D " + extraAudioTime.toString().padLeft(12, " ")[0..11] +
+					" Extra audio silence")
+				*/
 			}
+			
+
 			
 			//*******************************************************************
 			//Calculate extra silence that should be inserted at the end of the music track
@@ -832,6 +959,11 @@ class ScriptProducerExcelExport
 			extraMusicTime[3] = 0.0
 			for(int musicIndex=1; musicIndex<=3; musicIndex++)
 			{
+				//Don't add extra time if a musicloop is programmed
+				if(settings["music${musicIndex}loop"])
+				{
+					continue
+				}
 				if(musicT[musicIndex] < longestT)
 				{
 					extraMusicTime[musicIndex] = longestT - musicT[musicIndex]
@@ -840,19 +972,74 @@ class ScriptProducerExcelExport
 					//This does that, adding extra blank audio time to pad the audio track out to the same length as the video track.
 					music[musicIndex] = timeline.musicTrack[musicIndex] << Timecode.seconds(extraMusicTime[musicIndex])
 
-					//logInfo("Added quiet, duration=" + Timecode.seconds(extraMusicTime[musicIndex]).toString().padLeft(10, " ") + "".padRight(15, " ") + " V" + timeline.videoLatestTime.toString().padLeft(12, " ") + " A" + timeline.audioLatestTime.toString().padLeft(12, " "))
+					/*logInfo("V" + Timecode.toSeconds(timeline.videoLatestTime).toString().padLeft(12, " ") +
+						" A" + Timecode.toSeconds(timeline.audioLatestTime).toString().padLeft(12, " ") +
+						" D " + extraMusicTime[musicIndex].toString().padLeft(12, " ")[0..11] +
+						" Extra music silence")
+					*/
 				}
 			}
 			
-			//logInfo("Segment:")
-			//logInfo("visualT: " + (imageT + colorT + videoT) + " latest: " + timeline.videoTrack.videoLatestTime)
-			//logInfo("audioT: $audioT extra: $extraAudioTime latest: " + timeline.audioTrack.audioLatestTime)
-			//logInfo("musicT[1]: ${musicT[1]} extra: ${extraMusicTime[1]} latest: " + timeline.musicTrack[1].audioLatestTime)
-			//logInfo("musicT[2]: ${musicT[2]} extra: ${extraMusicTime[2]} latest: " + timeline.musicTrack[2].audioLatestTime)
-			//logInfo("musicT[3]: ${musicT[3]} extra: ${extraMusicTime[3]} latest: " + timeline.musicTrack[3].audioLatestTime)
-			//logInfo("transT: $transT")
+			/*
+			logInfo("Segment:")
+			logInfo("visualT: " + (imageT + colorT + videoT) + " latest: " + Timecode.toSeconds(timeline.videoTrack.videoLatestTime))
+			logInfo("audioT: $audioT extra: $extraAudioTime latest: " + Timecode.toSeconds(timeline.audioTrack.audioLatestTime))
+			logInfo("musicT[1]: ${musicT[1]} extra: ${extraMusicTime[1]} latest: " + Timecode.toSeconds(timeline.musicTrack[1].audioLatestTime))
+			logInfo("musicT[2]: ${musicT[2]} extra: ${extraMusicTime[2]} latest: " + Timecode.toSeconds(timeline.musicTrack[2].audioLatestTime))
+			logInfo("musicT[3]: ${musicT[3]} extra: ${extraMusicTime[3]} latest: " + Timecode.toSeconds(timeline.musicTrack[3].audioLatestTime))
+			logInfo("transT: $transT")
+			*/
 
-			//logInfo(("") //end of a segment)
+			logInfo("") //end of a segment
+		}
+		
+		
+		//*******************************************************************
+		//Add music track to fill entire timeline
+		//*******************************************************************
+		for(int musicIndex=1; musicIndex<=3; musicIndex++)
+		{
+			if(settings["music${musicIndex}loop"])
+			{
+				logInfo("Music loop ${musicIndex+1}: " + settings["music${musicIndex}loop"])
+				def filename = settings["music${musicIndex}loop"]
+				def format = ""
+				if(filename)
+				{
+					format = Library.classifyFileFormat(filename)
+				}
+				
+				//Add the music to musicTimes[]
+				Long mediaDuration = FFMPEG.getDuration(Library.findFileOrDie(settings.musicpath + filename).getCanonicalPath())
+				Long musicLoops = (totalT / mediaDuration) as int
+				Long musicRemainder = totalT - (musicLoops * mediaDuration)
+				logInfo("Total Timeline Time: ${totalT}")
+				logInfo("Music File Time: " + mediaDuration)
+				logInfo("Music Loops: " + musicLoops)
+				logInfo("Music Remainder Time: " + musicRemainder)
+				
+				//Add the music to music[]
+				for(Long i=0; i<musicLoops; i++)
+				{
+					//Add the music file to the timeline using the addClippedClip() method, which allows the music clip to be clipped to the size of the audio track for this segment
+					def musicFileObject = lib.add(Library.findFileOrDie(settings.musicpath + filename))
+
+					def musicObject = timeline.musicTrack[musicIndex].addClippedClip(musicFileObject, Timecode.seconds(0.0), Timecode.seconds(0.0))
+					
+					musicObject.setConstantVolume(Float.parseFloat(settings["music" + musicIndex + "volume"]))
+				}
+
+				//Add clipped music for final loop
+				if(musicRemainder > 0.0)
+				{
+					//Add the music file to the timeline using the addClippedClip() method, which allows the music clip to be clipped to the size of the audio track for this segment
+					def musicFileObject = lib.add(Library.findFileOrDie(settings.musicpath + filename))
+
+					def musicObject = timeline.musicTrack[musicIndex].addClippedClip(musicFileObject, Timecode.seconds(0.0), Timecode.seconds(mediaDuration - musicRemainder))
+					
+					musicObject.setConstantVolume(Float.parseFloat(settings["music" + musicIndex + "volume"]))
+				}
+			}
 		}
 	}
 	
@@ -1038,6 +1225,7 @@ class ScriptProducerExcelExport
 			imageTimes[i].start = borders[i]
             imageTimes[i].stop = borders[i+1]
             imageTimes[i].duration = imageTimes[i].stop - imageTimes[i].start
+			//logInfo("imageTimes:" + imageTimes[i])
 		}
 	}
 	
@@ -1175,7 +1363,7 @@ class ScriptProducerExcelExport
 	public void addDefaultSubtitleFormatting(subtl)
 	{
 		subtl << new MetaLayer(MetaLayer.TEXT_MEDIA)
-		subtl << new MetaString(left:0, top:0, width:320, height:240, xOffset:10.0, yOffset:Float.parseFloat(settings.textbottomoffset))
+		subtl << new MetaString(left:0, top:0, width:320, height:240, xOffset:Float.parseFloat(settings.textsideoffset), yOffset:Float.parseFloat(settings.textbottomoffset))
 		subtl << new MetaParagraph(width:320, height:240, align:MetaParagraph.ALIGN_LEFT)
 		subtl << new MetaLine(width:320, height:240)
 		subtl << new MetaFont(settings.textfont, Integer.parseInt(settings.textsize), Boolean.valueOf(settings.textbold), Boolean.valueOf(settings.textitalic))
