@@ -59,4 +59,10 @@ class EffectTitle extends Effect
 		params << new Param("TEMPLATE_ALIAS", "CHAR", ctemplate.toAliasString())
 		params << new Param("ID_TITLE_DZTEMPLATEID", "STRING", "")
 	}
+	
+	public String toString()
+	{
+		String output = super.toString()
+		return output
+	}
 }
