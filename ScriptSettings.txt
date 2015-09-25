@@ -1,0 +1,34 @@
+#Numeric
+colortime
+transitiontime
+music1volume
+music2volume
+music3volume
+audiovolume
+videovolume
+
+#Path
+saveas
+audiopath
+imagpath
+textpath
+videopath
+ffmpeg
+
+#Text
+author
+company
+description
+aspectratio #e.g. 4:3, 16:9
+
+#Boolean
+audiolimiter
+
+#Subtitle Font Style
+textbottomoffset #e.g. 10
+textfont #e.g. Arial
+textsize #e.g. 20
+textbold #true/false
+textitalic #true/false
+textcolor #e.g. 255,255,255
+textbordercolor #e.g. 0,0,0
