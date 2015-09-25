@@ -128,7 +128,7 @@ class SubtitleFile
 		}
 		
 		//Add offset to all variable entries
-		variables.each{v->
+		variables.each{k,v->
 			v.start += offset
 			v.end += offset
 			for(def i=0; i<v["size"]; i++)
