@@ -113,7 +113,6 @@ class TrackVideo extends Track
 		
 		videoTimeline << videoClip
 		videoClips++
-		videoLatestTime += videoClip.duration
 		
 		//add the corresponding MAudio clip to the audio timeline
 		def audioClip = new ClipMAudio(videoClips, video, videoLatestTime)
@@ -123,6 +122,8 @@ class TrackVideo extends Track
 		audioTimeline << audioClip
 		
 		videoClip.clipMAudio = audioClip
+		
+		videoLatestTime += videoClip.duration
 		
 		return videoClip
 	}
