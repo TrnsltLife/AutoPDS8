@@ -36,6 +36,9 @@ class ScriptProducerExcelExport
 	
 	def script = []
 	def segments = []
+	
+	def screenWidth = 320
+	def screenHeight = 240
 
 	public ScriptProducerExcelExport(file, encoding)
 	{	
@@ -302,6 +305,7 @@ class ScriptProducerExcelExport
 			
 			//First count up the duration time for each type of object, so we can calculate how long images should be shown, etc.
 			segment.each{line->
+				logInfo(line)
 				def commandList = line.split(/\t/).toList()
 				def command = commandList[0] ?: ""
 				def filename = commandList[1] ?: ""
@@ -437,7 +441,7 @@ class ScriptProducerExcelExport
 					
 					//clipStopOffset is measured backwards from the end of the media clip
 					def clipStopOffset = stopoffset ? (mediaDuration - stopoffset) : 0.0
-					musicTimes[musicIndex] << [duration:clipDuration, mediaDuration:mediaDuration, clipStopOffset:clipStopOffset, type:"file"]
+					musicTimes[musicIndex] << [start:starttime, duration:clipDuration, mediaDuration:mediaDuration, clipStopOffset:clipStopOffset, type:"file", file:filename]
 				}
 				
 				//Image file
@@ -502,7 +506,6 @@ class ScriptProducerExcelExport
 						//logInfo("video: [start:$starttime, stop:$stoptime, duration:$clipDuration, mediaDuration:$mediaDuration, clipStopOffset:$clipStopOffset, name:$filename]")
 					}
 					//Duration is required to know how long the video lasts
-					//TODO It would be nice to be able to detect the video length automatically
 				}
 				
 				//Color board
@@ -782,10 +785,25 @@ class ScriptProducerExcelExport
 					musicObjectCount[musicIndex]++
 					if(listItem.add)
 					{
+						//TODO New code 2015-10-12
+						//Add duration for music#silence if needed, i.e. if the listItem.start is greater than the current value of musicT, fill in the gap with silence
+						if(listItem.start)
+						{
+							def audioLatestTime = Timecode.toSeconds(timeline.musicTrack[musicIndex].audioLatestTime)
+							def startTime = listItem.start + Timecode.toSeconds(segmentStartTime)
+							logInfo("audioLatest: ${audioLatestTime} < musicStart: ${startTime} ? ${audioLatestTime < startTime} (${listItem.file})")
+							if(startTime > audioLatestTime)
+							{
+								def silenceLength = startTime - audioLatestTime
+								//insert music silence into music track duration
+								music[musicIndex] = timeline.musicTrack[musicIndex] << Timecode.seconds(silenceLength)
+								logInfo("audioLatest >> " + Timecode.toSeconds(timeline.musicTrack[musicIndex].audioLatestTime))
+							}
+						}
+						
 						//Add the music file to the timeline using the addClippedClip() method, which allows the music clip to be clipped to the size of the audio track for this segment
 						music[musicIndex] = lib.add(Library.findFileOrDie(settings.musicpath + filename))
 
-						//TODO: Change this back if it doesn't work.						
 						//Changed this to allow duration of audio to be clipped by script file
 						//music[musicIndex] = timeline.musicTrack[musicIndex].addClippedClip(music[musicIndex], 0, Timecode.seconds(listItem.stopOffset))
 						def thisStopOffset = listItem.stopOffset
@@ -835,7 +853,7 @@ class ScriptProducerExcelExport
 					def listItem = imageTimes[visualObjectCount]
 					visualObjectCount++
 					
-					//TODO: Verify that commenting out the next line and adding the next 2 lines allows a Video clip to be added propery, and allows its start and stop times to be clipped
+					//Commenting out the next line and adding the next 2 lines allows a Video clip to be added propery, and allows its start and stop times to be clipped
 					//video = timeline << lib.add(Library.findFileOrDie(settings.videopath + filename), Timecode.seconds(thisVideoTime))
 					video = lib.add(Library.findFileOrDie(settings.videopath + filename), Timecode.seconds(thisVideoTime))
 					def thisStopOffset = listItem.stopOffset
@@ -1238,15 +1256,23 @@ class ScriptProducerExcelExport
 		if(audiolimiter == true)
 		{
 			//To make sure the length of every silence is respected, we subtract the silence durations here
+			//TODO: 2015-10-12 - What? Is this really right? I'm commenting it out to see what happens
+			//NOTE: If something seems wrong with audio length or detecting longest audio, try uncommenting these lines below
 			def longestTMinusSilence = longestT
+			/*
 			musicTimes.each{listItem->
 				if(listItem.type == "silence")
 				{
 					longestTMinusSilence -= listItem.duration
 				}
 			}
+			*/
 			
-			musicTimes.each{listItem->
+			//musicTimes.each{listItem->
+			for(int index=0; index < musicTimes.size(); index++)
+			{
+				def listItem = musicTimes[index]
+				
 				//Limit the music track to not extend beyond the audio track
 				if(listItem.type == "silence")
 				{
@@ -1264,6 +1290,19 @@ class ScriptProducerExcelExport
 					{
 						def originalDuration = listItem.duration
 						def duration = originalDuration
+						
+						//TODO New code 2015-10-12
+						//Add duration for music#silence if needed, i.e. if the listItem.start is greater than the current value of musicT, fill in the gap with silence
+						if(listItem.start)
+						{
+							logInfo("musicT: $musicT < musicStart: ${listItem.start} ? ${listItem.start > musicT} (${listItem.file})")
+							if(listItem.start > musicT)
+							{
+								def silenceLength = listItem.start - musicT
+								musicT += silenceLength
+								logInfo("musicT >> " + musicT)
+							}
+						}
 
 						if((musicT + originalDuration) > longestTMinusSilence)
 						{
@@ -1287,6 +1326,17 @@ class ScriptProducerExcelExport
 		else
 		{
 			musicTimes.each{listItem->
+				
+				//TODO New code 2015-10-12
+				//Add duration for music#silence if needed, i.e. if the listItem.start is greater than the current value of musicT, fill in the gap with silence
+				if(listItem.start)
+				{
+					if(listItem.start > musicT)
+					{
+						musicT += listItem.start - musicT
+					}
+				}
+				
 				musicT += listItem.duration
 				listItem.add = true
 				listItem.stopOffset = 0
@@ -1363,9 +1413,9 @@ class ScriptProducerExcelExport
 	public void addDefaultSubtitleFormatting(subtl)
 	{
 		subtl << new MetaLayer(MetaLayer.TEXT_MEDIA)
-		subtl << new MetaString(left:0, top:0, width:320, height:240, xOffset:Float.parseFloat(settings.textsideoffset), yOffset:Float.parseFloat(settings.textbottomoffset))
-		subtl << new MetaParagraph(width:320, height:240, align:MetaParagraph.ALIGN_LEFT)
-		subtl << new MetaLine(width:320, height:240)
+		subtl << new MetaString(screenWidth:screenWidth, screenHeight:screenHeight, left:0, top:0, width:screenWidth, height:screenHeight, xOffset:Float.parseFloat(settings.textsideoffset), yOffset:Float.parseFloat(settings.textbottomoffset))
+		subtl << new MetaParagraph(width:screenWidth, height:screenHeight, align:MetaParagraph.ALIGN_LEFT)
+		subtl << new MetaLine(width:screenWidth, height:screenHeight)
 		subtl << new MetaFont(settings.textfont, Integer.parseInt(settings.textsize), Boolean.valueOf(settings.textbold), Boolean.valueOf(settings.textitalic))
 		//subtl << new MetaFace(color1:[255,255,255])
 		subtl << new MetaFace(color1:colorStringToList(settings.textcolor))
@@ -1381,9 +1431,9 @@ class ScriptProducerExcelExport
 	public void addDefaultTitleFormatting(subtl)
 	{
 		subtl << new MetaLayer(MetaLayer.TEXT_MEDIA)
-		subtl << new MetaString(left:0, top:0, width:320, height:240, xOffset:10.0, yOffset:-10.0)
-		subtl << new MetaParagraph(width:320, height:240)
-		subtl << new MetaLine(width:320, height:240)
+		subtl << new MetaString(screenWidth:screenWidth, screenHeight:screenHeight, left:0, top:0, width:screenWidth, height:screenHeight, xOffset:10.0, yOffset:-10.0)
+		subtl << new MetaParagraph(width:screenWidth, height:screenHeight)
+		subtl << new MetaLine(width:screenWidth, height:screenHeight)
 		subtl << new MetaFont("Gentium", 20, true, false)
 		subtl << new MetaFace(color1:[255,255,255])
 		subtl << new MetaBorder(color1:[0,0,0])
