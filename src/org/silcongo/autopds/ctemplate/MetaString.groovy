@@ -26,7 +26,7 @@ class MetaString extends MetaPlaceable
 	
 	def screenWidth = 320.00
 	def screenHeight = 240.00
-	def xOffset = 0.0 //allows you to shift the Left position of MetaString
+	def xOffset = 0.0 //allows you to shift the Left position of MetaString. There will be a correspondingly sized whitespace on the right. 
 	def yOffset = 0.0 //allows you to shift the Top position of MetaString
 	def maximumLineWidth = screenWidth //override this to make lines wrap at smaller widths
 	def lineHeightMultiplier = 0.5 //1.0 uses the line height from FontMetrics, < 1.0 makes smaller lines, > 1.0 makes bigger lines. Line heigh from FontMetrics is generally too large.
@@ -145,6 +145,7 @@ class MetaString extends MetaPlaceable
 		this.height = screenHeight - this.top
 		
 		//Need to determine the maximum line width
+		maximumLineWidth = screenWidth - (2 * xOffset) //Normal screen height with space for xOffset on the left and on the right.
 		def longestLineWidth = 0.0
 		
 		//Loop over all characters until they are all assigned to the proper line, along with their metrics
