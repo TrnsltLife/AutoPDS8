@@ -37,8 +37,8 @@ class ScriptProducerExcelExport
 	def script = []
 	def segments = []
 	
-	def screenWidth = 320
-	def screenHeight = 240
+	def screenWidth = 400 //320
+	def screenHeight = 240 //240
 
 	public ScriptProducerExcelExport(file, encoding)
 	{	
@@ -202,6 +202,13 @@ class ScriptProducerExcelExport
 		settings.music3volume = "1.0"
 		settings.audiovolume = "1.0"
 		settings.videovolume = "1.0"
+		
+		settings.music1fadein = 0
+		settings.music1fadeout = 0
+		settings.music2fadein = 0
+		settings.music2fadeout = 0
+		settings.music3fadein = 0
+		settings.music3fadeout = 0
 		
 		settings.music1loop = ""
 		settings.music2loop = ""
@@ -791,13 +798,13 @@ class ScriptProducerExcelExport
 						{
 							def audioLatestTime = Timecode.toSeconds(timeline.musicTrack[musicIndex].audioLatestTime)
 							def startTime = listItem.start + Timecode.toSeconds(segmentStartTime)
-							logInfo("audioLatest: ${audioLatestTime} < musicStart: ${startTime} ? ${audioLatestTime < startTime} (${listItem.file})")
+							//logInfo("audioLatest: ${audioLatestTime} < musicStart: ${startTime} ? ${audioLatestTime < startTime} (${listItem.file})")
 							if(startTime > audioLatestTime)
 							{
 								def silenceLength = startTime - audioLatestTime
 								//insert music silence into music track duration
 								music[musicIndex] = timeline.musicTrack[musicIndex] << Timecode.seconds(silenceLength)
-								logInfo("audioLatest >> " + Timecode.toSeconds(timeline.musicTrack[musicIndex].audioLatestTime))
+								//logInfo("audioLatest >> " + Timecode.toSeconds(timeline.musicTrack[musicIndex].audioLatestTime))
 							}
 						}
 						
@@ -812,6 +819,19 @@ class ScriptProducerExcelExport
 						
 						if(volume == null || volume == ""){volume = settings["music" + musicIndex + "volume"]}
 						music[musicIndex].setConstantVolume(Float.parseFloat(volume))
+						
+						//Test setting fade-in and fade-out
+						if(settings["music" + musicIndex + "fadein"])
+						{
+							def fadein = Float.parseFloat(settings["music" + musicIndex + "fadein"])
+							music[musicIndex].setFadeIn(Timecode.seconds(fadein))
+						}
+						if(settings["music" + musicIndex + "fadeout"])
+						{
+							def fadeout = Float.parseFloat(settings["music" + musicIndex + "fadeout"])
+							music[musicIndex].setFadeOut(Timecode.seconds(fadeout))
+						}
+						
 						/*logInfo("V" + Timecode.toSeconds(timeline.videoLatestTime).toString().padLeft(12, " ") +
 							" A" + Timecode.toSeconds(timeline.audioLatestTime).toString().padLeft(12, " ") +
 							" D " + Timecode.toSeconds(music[musicIndex].duration).toString().padLeft(12, " ")[0..11] +
@@ -1295,12 +1315,12 @@ class ScriptProducerExcelExport
 						//Add duration for music#silence if needed, i.e. if the listItem.start is greater than the current value of musicT, fill in the gap with silence
 						if(listItem.start)
 						{
-							logInfo("musicT: $musicT < musicStart: ${listItem.start} ? ${listItem.start > musicT} (${listItem.file})")
+							//logInfo("musicT: $musicT < musicStart: ${listItem.start} ? ${listItem.start > musicT} (${listItem.file})")
 							if(listItem.start > musicT)
 							{
 								def silenceLength = listItem.start - musicT
 								musicT += silenceLength
-								logInfo("musicT >> " + musicT)
+								//logInfo("musicT >> " + musicT)
 							}
 						}
 

@@ -158,7 +158,7 @@ class Transition
 		createParamList()
 		
 		def output = new StringBuilder()
-		output << """<TRANSITION ID="${id}" GUID="${transitionType}" START="${start}" STOP="${stop}">"""
+		output << """<TRANSITION ID="${id}" GUID="${transitionType}" START="${start}" STOP="${stop}" TRANSITIONNAME="POSTTRANSITION" ADDSTILL="0">"""
 		params.each{output << it.toString()}
 		output << "</TRANSITION>"
 
@@ -265,12 +265,12 @@ class Transition
 		SlicesHorizontalII:[guid:"CES_PlugIn.dll\\DSP_TR_SlicesH2"],
 		SlicesVerticalI:[guid:"CES_PlugIn.dll\\DSP_TR_SlicesV1"],
 		SlicesVerticalII:[guid:"CES_PlugIn.dll\\DSP_TR_SlicesV2"],
-		SlideDown:[guid:"CES_PlugIn.dll\\DSP_TR_Slide", params:[[type:"UNSIGNED_INT", value:"1"]]],
-		SlideLeft:[guid:"CES_PlugIn.dll\\DSP_TR_Slide", params:[[type:"UNSIGNED_INT", value:"2"]]],
+		SlideDown:[guid:"CES_PlugIn.dll\\DSP_TR_Slide",  params:[[type:"UNSIGNED_INT", value:"1"]]],
+		SlideLeft:[guid:"CES_PlugIn.dll\\DSP_TR_Slide",  params:[[type:"UNSIGNED_INT", value:"2"]]],
 		SlideRight:[guid:"CES_PlugIn.dll\\DSP_TR_Slide", params:[[type:"UNSIGNED_INT", value:"3"]]],
 		SlideSpinHorizontalI:[guid:"CES_PlugIn.dll\\DSP_TR_SlideSpin1"],
 		SlideSpinHorizontalII:[guid:"CES_PlugIn.dll\\DSP_TR_SlideSpin2"],
-		SlideUp:[guid:"CES_PlugIn.dll\\DSP_TR_Slide", params:[[type:"UNSIGNED_INT", value:"0"]]],
+		SlideUp:[guid:"CES_PlugIn.dll\\DSP_TR_Slide",    params:[[type:"UNSIGNED_INT", value:"0"]]],
 		Sparkle:[guid:"CES_PlugIn_5.dll\\Ces_DSP_TR_Sparkle"],
 		SpinHorizontalLeft:[guid:"CES_PlugIn.dll\\DSP_TR_SpinLeft"],
 		SpinHorizontalRight:[guid:"CES_PlugIn.dll\\DSP_TR_SpinRight"],

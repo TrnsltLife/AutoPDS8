@@ -13,7 +13,7 @@ class MetaString extends MetaPlaceable
 	def maskFile = ""
 	
 	def defaultLineHeight = 30.234375
-	def defaultAlign = 6 //apparently this is Centered
+	def defaultAlign = MetaParagraph.ALIGN_CENTER
 
 	def characterList = [] //MetaCharacter
 	def lineList = [] //MetaLine
@@ -24,7 +24,11 @@ class MetaString extends MetaPlaceable
 	def shadowList = [] //MetaShadow
 	def pathList = [] //MetaPath
 	
-	def screenWidth = 320.00
+	//In PD 12, the outer layer (MetaString) apparently has a width of 320,
+	//while the inner layer of MetaLine etc. has a width of 400.
+	def outerScreenWidth = 320.00 //width of MetaString
+	def outerScreenHeight = 240.00
+	def screenWidth = 400.00 //width of MetaLine
 	def screenHeight = 240.00
 	def xOffset = 0.0 //allows you to shift the Left position of MetaString. There will be a correspondingly sized whitespace on the right. 
 	def yOffset = 0.0 //allows you to shift the Top position of MetaString
@@ -140,12 +144,12 @@ class MetaString extends MetaPlaceable
 		//Set the metrics for this MetaString
 		//this.left = (screenWidth - start) / 2
 		this.left = 0.0
-		this.width = screenWidth
-		this.top = screenHeight - lineHeight
-		this.height = screenHeight - this.top
+		this.width = outerScreenWidth //screenWidth
+		this.top = outerScreenHeight - lineHeight //screenHeight - lineHeight
+		this.height = outerScreenHeight - this.top //screenHeight - this.top
 		
 		//Need to determine the maximum line width
-		maximumLineWidth = screenWidth - (2 * xOffset) //Normal screen height with space for xOffset on the left and on the right.
+		maximumLineWidth = screenWidth - (2 * xOffset) //Normal screen width with space for xOffset on the left and on the right.
 		def longestLineWidth = 0.0
 		
 		//Loop over all characters until they are all assigned to the proper line, along with their metrics
@@ -186,9 +190,17 @@ class MetaString extends MetaPlaceable
 		
 		
 		//Update MetaString again
-		this.left = (screenWidth - longestLineWidth) / 2 + xOffset
+		
+		//Old code worked with previous version of PowerDirector
+		//this.left = (screenWidth - longestLineWidth) / 2 //+ xOffset
+		//this.top += yOffset
+		//this.width = longestLineWidth
+
+		//PowerDirector 12 requires this adjusted line width to adjust MetaLine width (400) to MetaString width (320)?
+		def adjustedLongestLineWidth = longestLineWidth / screenWidth * outerScreenWidth
+		this.left = (outerScreenWidth - adjustedLongestLineWidth) / 2
 		this.top += yOffset
-		this.width = longestLineWidth
+		this.width = adjustedLongestLineWidth
 		
 
 		//Update the left of each line to match the appropriate align property in paragraph
@@ -215,7 +227,7 @@ class MetaString extends MetaPlaceable
 		characterList.each{c-> 
 			if(c.lineIndex != lastIndex)
 			{
-				output += "\r\n${c.lineIndex} at ${paragraphList[lineList[c.lineIndex].paragraphIndex].top}|"
+				output += "\r\n${c.lineIndex} at (${paragraphList[lineList[c.lineIndex].paragraphIndex].left}, ${paragraphList[lineList[c.lineIndex].paragraphIndex].top}) + (${lineList[c.lineIndex].left}, ${lineList[c.lineIndex].top})|"
 			}
 			output += (char)c.value
 			

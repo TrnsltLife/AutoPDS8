@@ -44,6 +44,21 @@ class SubtitleFile
 				}
 			}
 			
+			//Create a variable entry for the starting point of the subtitle file
+			def variable = "start"
+			if(!variables.containsKey(variable))
+			{
+				variables[variable] = [:]
+				def v = variables[variable]
+				v[0] = 0
+				v["start"] = 0
+				v[1] = 0
+				v["end"] = 0
+				v["size"] = 2
+				v["duration"] = 0
+			}
+
+			
 			//Deal with variable declarations e.g. {c11v3}.
 			//These set start and end times associated with the variable name.
 			//The variable name can be used in a script file (e.g. used by ScriptProducerExcelExport) to
@@ -52,7 +67,7 @@ class SubtitleFile
 			while(text =~ varRegex)
 			{
 				def matcher = (text =~ varRegex)
-				def variable = matcher[0]
+				variable = matcher[0]
 				variable = (variable - "{") - "}"
 				text = matcher.replaceFirst("")
 				

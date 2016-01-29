@@ -103,4 +103,18 @@ class EffectVolumeAdjust extends Effect
 	{
 		paramLinear.add(fromClip.duration, value)
 	}
+	
+	public void setFadeTime(duration)
+	{
+		if(paramName == "FADEIN")
+		{
+			def linearValue = paramLinear.linearValueList[1]
+			linearValue.time += duration
+		}
+		else if(paramName == "FADEOUT")
+		{
+			def linearValue = paramLinear.linearValueList[0]
+			linearValue.time -= duration
+		}
+	}
 }

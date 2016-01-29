@@ -71,6 +71,16 @@ class ClipAudio extends Clip
 		effectKeyframe.addLast(volume)
 	}
 	
+	public void setFadeIn(duration)
+	{
+		effectFadein.setFadeTime(duration)
+	}
+	
+	public void setFadeOut(duration)
+	{
+		effectFadeout.setFadeTime(duration)
+	}
+	
 	public String toString()
 	{
 		def output = new StringBuilder()
