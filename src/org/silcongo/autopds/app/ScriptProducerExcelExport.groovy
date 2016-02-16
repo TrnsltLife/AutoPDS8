@@ -39,6 +39,8 @@ class ScriptProducerExcelExport
 	
 	def screenWidth = 400 //320
 	def screenHeight = 240 //240
+	
+	def srtFile = new SRTFile()
 
 	public ScriptProducerExcelExport(file, encoding)
 	{	
@@ -118,6 +120,7 @@ class ScriptProducerExcelExport
 		if(settings.transitiontime instanceof String){settings.transitiontime = Double.parseDouble(settings.transitiontime)}
 		
 		settings.saveas = finalizePath(settings.saveas)
+		settings.srtfile = finalizePath(settings.srtfile)
 		settings.audiopath = finalizePath(settings.audiopath) + "\\"
 		settings.imagepath = finalizePath(settings.imagepath) + "\\"
 		settings.musicpath = finalizePath(settings.musicpath) + "\\"
@@ -179,6 +182,7 @@ class ScriptProducerExcelExport
 		//Set the default filename to save as
 		settings.saveas = scriptFile.getName()
 		settings.saveas = settings.saveas.replaceAll(/\.txt/, "") + ".pds"
+		settings.srtfile = settings.saveas.replaceAll(/\.pds/, "") + ".srt"
 		
 		settings.videopath = ""; //path to video files
 		settings.audiopath = ""; //path to audio files
@@ -735,7 +739,11 @@ class ScriptProducerExcelExport
 						addDefaultSubtitleFormatting(subtl)
 						subtl << sub.text
 						timeline << subtl
-					}
+						
+						//Write the subtitle into subtitleOutput in srt format
+						def sstSec = Timecode.toSeconds(segmentStartTime)
+						srtFile.addSubtitle(sub.start + sstSec, sub.end + sstSec, sub.text)
+					}					
 				}
 				
 				//Chapter point
@@ -1490,5 +1498,10 @@ class ScriptProducerExcelExport
 		cpicture << new MetaBorder(enable:false, size:5, color1:[255,255,255], color2:[255,255,255], alpha:255, blurRadius:0, borderType:1, valueType:0)
 		cpicture << new MetaShadow(enableShape:false, enableBorder:false, color1:[0,0,0], color2:[0,0,0], gradType:7, alpha:128, blurRadius:0, offsetX:3.0, offsetY:3.0, height:false)
 		cpicture << new MetaPosition1()
+	}
+
+	public void exportSRTFile()
+	{
+		srtFile.writeFile(settings.srtfile)
 	}
 }
